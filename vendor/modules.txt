@@ -205,6 +205,7 @@ k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 # k8s.io/klog v1.0.0
+## explicit
 k8s.io/klog
 # k8s.io/utils v0.0.0-20200229041039-0a110f9eb7ab
 ## explicit

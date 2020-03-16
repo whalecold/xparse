@@ -17,11 +17,11 @@ var configPath = "~/.kube/config"
 var day float64 = 365
 
 func main() {
-	flag.StringVar(&configPath, "kubeConfig", "", "the kubeconfig")
-	flag.Float64Var(&day, "day", 365, "min age")
+	flag.StringVar(&configPath, "kubeConfig", "~/.kube/config", "the config of kubernetes cluster")
+	flag.Float64Var(&day, "day", 365, "the lease age of perm")
 	flag.Parse()
 
-	klog.Infof("kubeconfig: [%s], min day: [%s]", configPath, day)
+	klog.Infof("kubernetes config: [%s], min day: [%.0f]", configPath, day)
 	config, err := clientcmd.BuildConfigFromFlags("", configPath)
 	if err != nil {
 		panic(err)
@@ -60,10 +60,6 @@ func main() {
 }
 
 func parseTLSCert(cert []byte) (*x509.Certificate, error) {
-	//cert, err := base64.StdEncoding.DecodeString(base64Str)
-	//if err != nil {
-	//	return nil, err
-	//}
 	certDERBlock, _ := pem.Decode(cert)
 	if certDERBlock == nil {
 		return nil, fmt.Errorf("pem decode failed")

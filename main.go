@@ -5,12 +5,12 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"log"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog"
 )
 
 var configPath = "~/.kube/config"
@@ -20,6 +20,8 @@ func main() {
 	flag.StringVar(&configPath, "kubeConfig", "", "the kubeconfig")
 	flag.Float64Var(&day, "day", 365, "min age")
 	flag.Parse()
+
+	klog.Infof("kubeconfig: [%s], min day: [%s]", configPath, day)
 	config, err := clientcmd.BuildConfigFromFlags("", configPath)
 	if err != nil {
 		panic(err)
@@ -43,13 +45,13 @@ func main() {
 				if strings.Contains(k, "cert") || strings.Contains(k, "crt") {
 					cert, err := parseTLSCert(v)
 					if err != nil {
-						log.Printf("[Warning] kube-system:[%s] secret:[%s] key:[%v] err:[%v] v:[%v]", ns.Name, s.Name, k, err, string(v))
+						klog.Infof("[Warning] kube-system:[%s] secret:[%s] key:[%v] err:[%v] v:[%v]", ns.Name, s.Name, k, err, string(v))
 						continue
 					}
 					expired := cert.NotAfter.Sub(cert.NotBefore).Hours()
 					minAge := 24 * day
 					if expired < minAge {
-						log.Printf("kube-system:[%s/%s] key:[%v] time:[%v]", ns.Name, s.Name, k, expired)
+						klog.Infof("kube-system:[%s/%s] key:[%v] time:[%v]", ns.Name, s.Name, k, expired)
 					}
 				}
 			}

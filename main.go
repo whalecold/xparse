@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog"
 )
 
 var configPath = "~/.kube/config"
@@ -21,7 +20,7 @@ func main() {
 	flag.Float64Var(&day, "day", 365, "the lease age of perm")
 	flag.Parse()
 
-	klog.Infof("kubernetes config: [%s], min day: [%.0f]", configPath, day)
+	fmt.Printf("kubernetes config: [%s], min day: [%.0f]\n", configPath, day)
 	config, err := clientcmd.BuildConfigFromFlags("", configPath)
 	if err != nil {
 		panic(err)
@@ -41,19 +40,24 @@ func main() {
 			panic(err)
 		}
 		for _, s := range ss.Items {
+			exist := false
 			for k, v := range s.Data {
 				if strings.Contains(k, "cert") || strings.Contains(k, "crt") {
 					cert, err := parseTLSCert(v)
 					if err != nil {
-						klog.Infof("[Warning] kube-system:[%s] secret:[%s] key:[%v] err:[%v] v:[%v]", ns.Name, s.Name, k, err, string(v))
+						fmt.Printf("[Warning] kube-system:[%s] secret:[%s] key:[%v] err:[%v] v:[%v]\n", ns.Name, s.Name, k, err, string(v))
 						continue
 					}
-					expired := cert.NotAfter.Sub(cert.NotBefore).Hours()
-					minAge := 24 * day
+					exist = true
+					expired := cert.NotAfter.Sub(cert.NotBefore).Hours() / 24
+					minAge := day
 					if expired < minAge {
-						klog.Infof("kube-system:[%s/%s] key:[%v] time:[%v]", ns.Name, s.Name, k, expired)
+						fmt.Printf("kube-system: %s %s key: %v time: %v \n", ns.Name, s.Name, k, expired)
 					}
 				}
+			}
+			if !exist {
+				fmt.Printf("[Warning] notexist :%s %s\n", ns.Name, s.Name)
 			}
 		}
 	}

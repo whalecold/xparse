@@ -7,9 +7,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/caicloud/clientset/kubernetes"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+)
+
+const (
+	recoverConfigClaimKey   = "recoverKey"
+	recoverConfigClaimValue = "recoverValue"
 )
 
 var configPath = "~/.kube/config"
@@ -21,25 +28,51 @@ func main() {
 	flag.Parse()
 
 	fmt.Printf("kubernetes config: [%s], min day: [%.0f]\n", configPath, day)
-	config, err := clientcmd.BuildConfigFromFlags("", configPath)
-	if err != nil {
-		panic(err)
-	}
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err)
-	}
+	client := generatorClient(configPath)
 	nsList, err := client.CoreV1().Namespaces().List(metav1.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
+	//listSecret(client, nsList.Items)
+	updateAllRelease(client, nsList.Items)
+}
 
-	for _, ns := range nsList.Items {
+func updateAllRelease(client *kubernetes.Clientset, nss []corev1.Namespace) {
+	for _, ns := range nss {
+		if ns.Name == "default" || ns.Name == "kube-system" || ns.Name == "kube-public" {
+			continue
+		}
+		fmt.Printf("----------start update release namespace %v-----------\n", ns.Name)
+		rList, err := client.ReleaseV1alpha1().Releases(ns.Name).List(metav1.ListOptions{})
+		if err != nil {
+			panic(err)
+		}
+		for _, r := range rList.Items {
+			if r.Annotations == nil {
+				r.Annotations = map[string]string{}
+			}
+			fmt.Printf("start update namespace [%s] release name [%s]\n", ns.Name, r.Name)
+			r.Annotations[recoverConfigClaimKey] = recoverConfigClaimValue
+			newRelease, err := client.ReleaseV1alpha1().Releases(ns.Name).Update(&r)
+			if err != nil {
+				panic(err)
+			}
+			delete(newRelease.Annotations, recoverConfigClaimKey)
+			_, err = client.ReleaseV1alpha1().Releases(ns.Name).Update(newRelease)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+func listSecret(client *kubernetes.Clientset, nss []corev1.Namespace) {
+	for _, ns := range nss {
 		ss, err := client.CoreV1().Secrets(ns.Name).List(metav1.ListOptions{})
 		if err != nil {
 			panic(err)
 		}
 		for _, s := range ss.Items {
+			fmt.Printf("[bug] secret name %s\n", s.Name)
 			exist := false
 			for k, v := range s.Data {
 				if strings.Contains(k, "cert") || strings.Contains(k, "crt") {
@@ -61,6 +94,18 @@ func main() {
 			}
 		}
 	}
+}
+
+func generatorClient(configPath string) *kubernetes.Clientset {
+	config, err := clientcmd.BuildConfigFromFlags("", configPath)
+	if err != nil {
+		panic(err)
+	}
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return client
 }
 
 func parseTLSCert(cert []byte) (*x509.Certificate, error) {
